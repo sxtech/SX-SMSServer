@@ -3,10 +3,9 @@ from PyQt4 import QtGui, QtCore
 import time,sys,os
 import logging
 import logging.handlers
-from singleinstance import singleinstance
-from socketser import SMSSer
-#from singleinstance import singleinstance
 import gl
+from mser import SMSSer
+from singleinstance import singleinstance
     
 def initLogging(logFilename):
     """Init for logging"""
@@ -26,7 +25,7 @@ def initLogging(logFilename):
     
 #°æ±¾ºÅ
 def version():
-    return 'SX-SMSServer V0.0.1'
+    return 'SX-SMSServer V0.1.0'
  
 class MyThread(QtCore.QThread):
     trigger = QtCore.pyqtSignal(str)

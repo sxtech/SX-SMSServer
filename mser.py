@@ -12,7 +12,6 @@ from iniconf import SMSIni
 from http import HttpFetch
 from DBUtils.PooledDB import PooledDB
 
-
 TIMEOUT = 40
 
 logger = logging.getLogger('root')  #创建日志文件对象
@@ -71,7 +70,7 @@ class SMSSer:
     #主循环
     def main(self): 
         logger.info('Logon System')
-
+        #把服务IP加入队列
         for i in self.iplist:
             self.sq.put(i)
             
@@ -163,6 +162,7 @@ class SMSSer:
                 gl.TRIGGER.emit("<font %s>%s</font>"%(gl.style_red,self.hf.getTime()+str(e)))        
                 time.sleep(1)
 
+    #发送短信HTTP请求
     def httpRequest(self,http_ip,sms):
         ms = Smysql()
         h = HttpFetch(http_ip,self.smsport)
@@ -187,7 +187,8 @@ class SMSSer:
             self.mysqlCount = 1
             gl.TRIGGER.emit("<font %s>%s</font>"%(gl.style_red,self.hf.getTime()+str(e)))
             logger.error(e)
-        self.sq.put(http_ip)
+            
+        self.sq.put(http_ip) #回收IP到队列
         
         del ms
         del h

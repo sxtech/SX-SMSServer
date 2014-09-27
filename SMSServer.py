@@ -25,7 +25,7 @@ def initLogging(logFilename):
     
 #°æ±¾ºÅ
 def version():
-    return 'SX-SMSServer V0.1.0'
+    return 'SX-SMSServer V0.2.0'
  
 class MyThread(QtCore.QThread):
     trigger = QtCore.pyqtSignal(str)

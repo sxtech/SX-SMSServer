@@ -49,6 +49,7 @@ class SMSSer:
 
         self.pq = Queue.PriorityQueue()      #短信优先级队列
         self.sq = Queue.Queue()              #服务队列
+        self.fq = Queue.Queue()              #失败服务队列
 
         self.hf = HelpFunc()
 
@@ -66,14 +67,64 @@ class SMSSer:
             self.mysqlflag = False
             gl.TRIGGER.emit("<font %s>%s</font>"%(gl.style_red,self.hf.getTime()+str(e)))
             self.mysqlCount = 1
+
+    #连接测试
+    def connCheck(self):
+        httpf = HttpFetch('127.0.0.1',self.smsport)
+        for i in self.iplist:
+            try:
+                httpf.host = i
+                if httpf.connTest()[:2] != '-1':
+                    self.sq.put({'ip':i,'fails':0})
+            except Exception,e:
+                gl.TRIGGER.emit("<font %s>%s</font>"%(gl.style_red,self.hf.getTime()+i+str(e)))
+                logger.error(i+str(e))
+        del httpf
+
+    #短信发送测试
+    def sendCheck(self):
+        h = HttpFetch('127.0.0.1',self.smsport)
+        fail_list = []    #失败服务IP链表
+        count = 0
+        while 1:
+            #退出检测
+            if not gl.QTFLAG:
+                gl.DCFLAG = False
+                del self.smsIni
+                logger.warning('Logout System')
+                break
+            
+            if self.fq.empty()==False:
+                fail_list.append(self.fq.get())
+                count = 31
+                
+            if count > 30:
+                for i in fail_list:
+                    try:
+                        h.host = i
+                        res = h.sendMsg(15819851862,'Hello World')
+                        if result[:2] == '-1' or '-2':
+                            pass
+                        else:
+                            fail_list.remove(i)
+                            self.sq.put({'ip':i,'fails':0})  #添加IP到队列
+                    except Exception,e:
+                        gl.TRIGGER.emit("<font %s>%s</font>"%(gl.style_red,self.hf.getTime()+i+str(e)))
+                        logger.error(i+str(e))
+                count = 0
+            else:                
+                count += 1
+            
+            time.sleep(1)
             
     #主循环
     def main(self): 
         logger.info('Logon System')
         #把服务IP加入队列
-        for i in self.iplist:
-            self.sq.put(i)
-            
+        self.connCheck()
+
+        t3 = threading.Thread(target=self.sendCheck)
+        t3.start()
         while 1:
             #退出检测
             if not gl.QTFLAG:
@@ -147,8 +198,7 @@ class SMSSer:
                     break
                 elif self.pq.empty()==False and self.sq.empty()==False:
                     sms = self.pq.get()
-                    ip  = self.sq.get()
-                    t = threading.Thread(target=self.httpRequest, args=(ip,sms[1]))
+                    t = threading.Thread(target=self.httpRequest, args=(self.sq.get(),sms[1]))
                     t.start()
                     if sms[1]['content'] == None:
                         content = 'None'
@@ -163,8 +213,10 @@ class SMSSer:
                 time.sleep(1)
 
     #发送短信HTTP请求
-    def httpRequest(self,http_ip,sms):
+    def httpRequest(self,ip_dict,sms):
         ms = Smysql()
+        http_ip = ip_dict['ip']    #服务IP
+        fails = ip_dict['fails']   #失败次数
         h = HttpFetch(http_ip,self.smsport)
         valid  = -1
         result = ''
@@ -172,13 +224,17 @@ class SMSSer:
         #发送短信
         try:
             result = h.sendMsg(sms['tel'],sms['content']) #这里content是UTF8
-            if result[:2] == '-1':
+            if result[:2] == '-1' or '-2':
                 valid = -1
+                fails = ip_dict['fails']+1      #失败次数加1
             else:
                 valid = 1
+                fails = 0          #失败次数清0
         except Exception,e:
-            logger.error(e)
-            gl.TRIGGER.emit("<font %s>%s</font>"%(gl.style_red,self.hf.getTime()+str(e)))        
+            result = '-2'
+            fails = ip_dict['fails']+1      #失败次数加1
+            logger.error(http_ip+str(e))
+            gl.TRIGGER.emit("<font %s>%s</font>"%(gl.style_red,self.hf.getTime()+http_ip+str(e)))        
         #更新短信内容
         try:
             ms.updateSMS(sms['id'],result,valid)
@@ -188,7 +244,10 @@ class SMSSer:
             gl.TRIGGER.emit("<font %s>%s</font>"%(gl.style_red,self.hf.getTime()+str(e)))
             logger.error(e)
             
-        self.sq.put(http_ip) #回收IP到队列
+        if fails >= 3:              #发送失败大于3次则加入失败服务队列
+            self.fq.put(http_ip)
+        else:
+            self.sq.put({'ip':http_ip,'fails':fails}) #回收IP到队列
         
         del ms
         del h

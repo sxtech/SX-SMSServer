@@ -20,7 +20,11 @@ class HttpFetch:
         resp, content = self.h.request("http://%s:%s/sms/index.php/sendmsg/send_msg?tel=%s&content=%s"%(self.host,self.port,tel,cont))
         return content
 
+    def connTest(self):
+        resp, content = self.h.request("http://%s:%s/sms/index.php/sendmsg/conn_test"%(self.host,self.port))
+        return content
+
 if __name__ == "__main__":
     hf = HttpFetch('localhost',8082)
-    print (hf.sendMsg(15819851862,'show me the money'))
-
+    #print (hf.sendMsg(15819851862,'show me the money'))
+    print (hf.connTest()[:2],)

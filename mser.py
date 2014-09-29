@@ -239,13 +239,18 @@ class SMSSer:
             if res_dict['valid'] == 1:            #发送成功
                 fails = 0                          #失败次数清0
                 valid = 1
+                logger.info('ID: %s_Send success!'%sms['id'])
+                gl.TRIGGER.emit("<font %s>%s</font>"%(gl.style_green,self.hf.getTime()+'ID: %s_Send success!'%sms['id']))      
             elif res_dict['valid'] == -1:           #发送失败
                 fails = ip_dict['fails']+1           #失败次数加1
                 valid = -1
+                logger.warning('ID: %s_Send failed!'%sms['id'])
+                gl.TRIGGER.emit("<font %s>%s</font>"%(gl.style_red,self.hf.getTime()+'ID: %s_Send failed!'%sms['id']))
             else:
-                fails = 3         #失败次数设置3
+                fails = 3       #失败次数设置3
                 valid = -2
-                
+                logger.warning('IP: %s_ServerError'%http_ip))
+                gl.TRIGGER.emit("<font %s>%s</font>"%(gl.style_red,self.hf.getTime()+'IP: %s_ServerError'%http_ip))               
         except Exception,e:
             fails = 3
             logger.error(http_ip+str(e))

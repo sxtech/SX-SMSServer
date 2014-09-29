@@ -26,5 +26,7 @@ class HttpFetch:
 
 if __name__ == "__main__":
     hf = HttpFetch('localhost',8082)
-    #print (hf.sendMsg(15819851862,'show me the money'))
-    print (hf.connTest()[:2],)
+    a = hf.sendMsg(15819851862,'show me the money')
+    #print (hf.connTest()[:2],)
+    import json
+    print json.loads(a)['result']

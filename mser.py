@@ -5,6 +5,7 @@ import threading
 import time
 import logging
 import MySQLdb
+import json
 import gl
 from helpfunc import HelpFunc
 from mysqldb import Smysql
@@ -67,55 +68,6 @@ class SMSSer:
             self.mysqlflag = False
             gl.TRIGGER.emit("<font %s>%s</font>"%(gl.style_red,self.hf.getTime()+str(e)))
             self.mysqlCount = 1
-
-    #连接测试
-    def connCheck(self):
-        httpf = HttpFetch('127.0.0.1',self.smsport)
-        for i in self.iplist:
-            try:
-                httpf.host = i
-                if httpf.connTest()[:2] != '-1':
-                    self.sq.put({'ip':i,'fails':0})
-            except Exception,e:
-                gl.TRIGGER.emit("<font %s>%s</font>"%(gl.style_red,self.hf.getTime()+i+str(e)))
-                logger.error(i+str(e))
-        del httpf
-
-    #短信发送测试
-    def sendCheck(self):
-        h = HttpFetch('127.0.0.1',self.smsport)
-        fail_list = []    #失败服务IP链表
-        count = 0
-        while 1:
-            #退出检测
-            if not gl.QTFLAG:
-                gl.DCFLAG = False
-                del self.smsIni
-                logger.warning('Logout System')
-                break
-            
-            if self.fq.empty()==False:
-                fail_list.append(self.fq.get())
-                count = 31
-                
-            if count > 30:
-                for i in fail_list:
-                    try:
-                        h.host = i
-                        res = h.sendMsg(15819851862,'Hello World')
-                        if result[:2] == '-1' or '-2':
-                            pass
-                        else:
-                            fail_list.remove(i)
-                            self.sq.put({'ip':i,'fails':0})  #添加IP到队列
-                    except Exception,e:
-                        gl.TRIGGER.emit("<font %s>%s</font>"%(gl.style_red,self.hf.getTime()+i+str(e)))
-                        logger.error(i+str(e))
-                count = 0
-            else:                
-                count += 1
-            
-            time.sleep(1)
             
     #主循环
     def main(self): 
@@ -149,6 +101,66 @@ class SMSSer:
 
             time.sleep(1)
 
+    #连接测试
+    def connCheck(self):
+        httpf = HttpFetch('127.0.0.1',self.smsport)
+        for i in self.iplist:
+            try:
+                httpf.host = i
+                if httpf.connTest()[:2] != '-1':
+                    self.sq.put({'ip':i,'fails':0})
+                else:
+                    self.fq.put(i)
+            except Exception,e:
+                gl.TRIGGER.emit("<font %s>%s</font>"%(gl.style_red,self.hf.getTime()+'%s: %s'%(i,str(e))))
+                logger.error('%s: %s'%(i,str(e)))
+        del httpf
+
+    #短信发送测试
+    def sendCheck(self):
+        h = HttpFetch('127.0.0.1',self.smsport)
+        fail_list = []    #失败服务IP链表
+        count = 0
+        while 1:
+            #退出检测
+            if not gl.QTFLAG:
+                gl.DCFLAG = False
+                del self.smsIni
+                logger.warning('Logout System')
+                break
+            
+            if self.fq.empty()==False:
+                fail_list.append(self.fq.get())
+                gl.TRIGGER.emit("<font %s>%s</font>"%(gl.style_orange,self.hf.getTime()+'%s: Add to check list'%fail_list[-1]))
+                logger.warning('%s: Add to check list'%fail_list[-1])
+                count = 31
+                
+            if count > 15:
+                for i in fail_list:
+                    try:
+                        h.host = i
+                        checktel = 15819851862
+                        checkcont = 'Hello World'
+                        res = h.sendMsg(checktel,checkcont)
+                        res_dict = json.loads(res)
+                        gl.TRIGGER.emit("<font %s>%s</font>"%(gl.style_orange,self.hf.getTime()+'IP: %s_电话: %s_内容: %s'%(i,checktel,checkcont)))
+                        #logger.warning('IP: %s_电话: %s_内容: %s'%(i,checktel,checkcont))
+                        if res_dict['valid'] == 1:
+                            self.sq.put({'ip':i,'fails':0})  #添加IP到队列
+                            fail_list.remove(i)
+                            gl.TRIGGER.emit("<font %s>%s</font>"%(gl.style_green,self.hf.getTime()+'IP: %s_发送成功！'%i))
+                        else:
+                            gl.TRIGGER.emit("<font %s>%s</font>"%(gl.style_red,self.hf.getTime()+'IP: %s_发送失败！'%i))
+                    except Exception,e:
+                        gl.TRIGGER.emit("<font %s>%s</font>"%(gl.style_red,self.hf.getTime()+'%s: %s'%(i,str(e))))
+                        #logger.error('%s: %s'%(i,str(e)))
+                count = 0
+            else:
+                count += 1
+            time.sleep(1)
+
+        del h
+
     #添加短信到队列
     def putSMS(self):
         mysql = Smysql()
@@ -158,7 +170,6 @@ class SMSSer:
 
             while 1:
                 #退出检测
-                #print 'maxid',maxid
                 if not gl.QTFLAG:
                     gl.DCFLAG = False
                     break
@@ -166,15 +177,14 @@ class SMSSer:
                 if not self.mysqlflag:
                     break
                 newid = mysql.getMaxID()['id']  #获取最大ID
-
                 if newid != None and newid > maxid:
                     idlist = []
                     for i in range(maxid,newid):
                         idlist.append(str(i+1))
                     newunvalid = mysql.getSMSByID(idlist)
-
+                    
                     for i in newunvalid:
-                        self.pq.put((i['level'],{'id':i['id'],'tel':i['tel'],'content':i['content']}))
+                        self.pq.put((i['level'],{'id':i['id'],'level':i['level'],'tel':i['tel'],'content':i['content']}))
                     maxid = newid
                 time.sleep(1)
         except MySQLdb.Error,e:
@@ -204,7 +214,8 @@ class SMSSer:
                         content = 'None'
                     else:
                         content = sms[1]['content'].encode('gbk')
-                    gl.TRIGGER.emit("<font %s>%s</font>"%(gl.style_blue,self.hf.getTime()+'电话:'+str(sms[1]['tel'])+'_内容:'+str(content)))
+                    gl.TRIGGER.emit("<font %s>%s</font>"%(gl.style_blue,self.hf.getTime()+'ID: '+str(sms[1]['id'])+'_电话: '+str(sms[1]['tel'])+'_内容: '+str(content)))
+                    logger.info('ID: '+str(sms[1]['id'])+'_电话: '+str(sms[1]['tel'])+'_内容: '+str(content))
                 else:
                     time.sleep(1)
             except Exception,e:
@@ -219,25 +230,32 @@ class SMSSer:
         fails = ip_dict['fails']   #失败次数
         h = HttpFetch(http_ip,self.smsport)
         valid  = -1
-        result = ''
+        res = ''
         
         #发送短信
         try:
-            result = h.sendMsg(sms['tel'],sms['content']) #这里content是UTF8
-            if result[:2] == '-1' or '-2':
-                valid = -1
-                fails = ip_dict['fails']+1      #失败次数加1
-            else:
+            res = h.sendMsg(sms['tel'],sms['content']) #这里content是UTF8
+            res_dict = json.loads(res)
+            if res_dict['valid'] == 1:            #发送成功
+                fails = 0                          #失败次数清0
                 valid = 1
-                fails = 0          #失败次数清0
+            elif res_dict['valid'] == -1:           #发送失败
+                fails = ip_dict['fails']+1           #失败次数加1
+                valid = -1
+            else:
+                fails = 3         #失败次数设置3
+                valid = -2
+                
         except Exception,e:
-            result = '-2'
-            fails = ip_dict['fails']+1      #失败次数加1
+            fails = 3
             logger.error(http_ip+str(e))
             gl.TRIGGER.emit("<font %s>%s</font>"%(gl.style_red,self.hf.getTime()+http_ip+str(e)))        
         #更新短信内容
         try:
-            ms.updateSMS(sms['id'],result,valid)
+            if valid == 1 or valid == -1:
+                ms.updateSMS(sms['id'],res_dict['result'].encode('gbk'),valid)
+            else:
+                self.pq.put((sms['level'],sms))      #短信服务器故障重复加入队列
         except MySQLdb.Error,e:
             self.mysqlflag = False
             self.mysqlCount = 1

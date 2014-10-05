@@ -1,0 +1,27 @@
+CREATE TABLE `sms` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `tel` varchar(32) DEFAULT NULL COMMENT '对方手机号',
+  `sendtime` datetime DEFAULT NULL COMMENT '发送时间',
+  `content` varchar(256) DEFAULT NULL COMMENT '发送内容',
+  `result` varchar(32) NOT NULL DEFAULT '-1' COMMENT '结果',
+  `valid` tinyint(4) NOT NULL DEFAULT '1' COMMENT '是否发送成功',
+  PRIMARY KEY (`id`),
+  KEY `idx_time` (`sendtime`) USING BTREE,
+  KEY `idx_valid` (`valid`) USING BTREE
+) ENGINE=InnoDB DEFAULT CHARSET=gbk;
+
+CREATE TABLE `smsser` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `host` varchar(32) NOT NULL DEFAULT '127.0.0.1' COMMENT 'ip',
+  `time` datetime NOT NULL DEFAULT '2014-01-01 00:00:00' COMMENT '插入时间',
+  `tel` varchar(32) DEFAULT NULL COMMENT '对方手机号',
+  `content` varchar(256) DEFAULT NULL COMMENT '发送内容',
+  `result` varchar(32) DEFAULT NULL COMMENT '结果',
+  `valid` tinyint(4) NOT NULL DEFAULT '0' COMMENT '是否发送成功',
+  `level` tinyint(4) NOT NULL DEFAULT '10' COMMENT '优先级',
+  PRIMARY KEY (`id`),
+  KEY `idx_valid` (`valid`),
+  KEY `idx_host` (`host`),
+  KEY `idx_result` (`result`),
+  KEY `idx_time` (`time`)
+) ENGINE=InnoDB DEFAULT CHARSET=gbk;

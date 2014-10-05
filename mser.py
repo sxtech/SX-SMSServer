@@ -112,6 +112,7 @@ class SMSSer:
                 else:
                     self.fq.put(i)
             except Exception,e:
+                self.fq.put(i)
                 gl.TRIGGER.emit("<font %s>%s</font>"%(gl.style_red,self.hf.getTime()+'%s: %s'%(i,str(e))))
                 logger.error('%s: %s'%(i,str(e)))
         del httpf
@@ -249,7 +250,7 @@ class SMSSer:
             else:
                 fails = 3       # ß∞‹¥Œ ˝…Ë÷√3
                 valid = -2
-                logger.warning('IP: %s_ServerError'%http_ip))
+                logger.warning('IP: %s_ServerError'%http_ip)
                 gl.TRIGGER.emit("<font %s>%s</font>"%(gl.style_red,self.hf.getTime()+'IP: %s_ServerError'%http_ip))               
         except Exception,e:
             fails = 3
